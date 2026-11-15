@@ -1,11 +1,12 @@
 plugins { id 'com.android.application' }
 android {
     namespace 'io.github.elsaphaba.adguardwaker'
-    compileSdk 37
+    compileSdk 36
+    buildToolsVersion '35.0.0'
     defaultConfig {
         applicationId 'io.github.elsaphaba.adguardwaker'
         minSdk 31
-        targetSdk 37
+        targetSdk 36
         versionCode 1
         versionName '1.0.0'
     }

@@ -23,7 +23,7 @@ Android용 AdGuard 전용 자동화 앱. Tasker, 루트, 상주 서비스 없이
 
 ## Android 제약
 
-minSdk 31 (Android 12), compileSdk/targetSdk 37 (Android 17). Android 12~17 실기기 검증은 별도로 필요합니다.
+minSdk 31 (Android 12), compileSdk/targetSdk 36 (Android 16). 최신 버전에서의 실행을 막는 maxSdkVersion은 설정하지 않습니다. Android 12 이상 및 Android 17 실기기 검증은 별도로 필요합니다.
 정확한 알람도 Doze 및 제조사 정책에 따라 지연되며, Doze 중에는 앱당 9분보다 자주 허용되지 않을 수 있습니다.
 비정확 알람은 더 지연될 수 있습니다. 앱 강제 종료, 시스템의 앱 제한, VPN 권한 미승인 또는 AdGuard 강제 종료 상태에서는 실행이 보장되지 않습니다.
 정확한 알람 권한 취소 시 OS가 기존 알람을 삭제할 수 있으며 복구 작업이나 앱 재실행으로 재예약합니다.
@@ -33,7 +33,7 @@ Waker는 자체 상태바 알림을 만들지 않지만 AdGuard 및 Android의 V
 
 ## 빌드
 
-JDK 17, Gradle 9.3.1, Android SDK Platform 37 / Build Tools 36.0.0, AGP 9.1.1.
+JDK 17, Gradle 8.13, Android SDK Platform 36 / Build Tools 35.0.0, AGP 8.13.2.
 Android Studio에서 프로젝트를 열거나 설치된 Gradle로 실행합니다 (바이너리 wrapper는 포함하지 않음).
 
 ```sh

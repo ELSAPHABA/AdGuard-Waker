@@ -1,19 +1,24 @@
 name: Android build
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+      - name: Test scheduling math
+        run: |
+          javac -d /tmp/waker-test app/src/main/java/io/github/elsaphaba/adguardwaker/ScheduleMath.java tests/ScheduleMathTest.java
+          java -cp /tmp/waker-test io.github.elsaphaba.adguardwaker.ScheduleMathTest
       - name: Install Android SDK packages
         shell: bash
         run: |
@@ -23,16 +28,18 @@ jobs:
             SDKMANAGER="$(command -v sdkmanager)"
           fi
           "$SDKMANAGER" --version
+          if [[ -f "$SDK_ROOT/platforms/android-36/android.jar" && -x "$SDK_ROOT/build-tools/35.0.0/aapt2" ]]; then
+            echo "Required Android SDK packages already installed."
+            exit 0
+          fi
           # yes can exit with SIGPIPE once sdkmanager accepts all licenses.
           (set +o pipefail; yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses)
-          "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-37" "build-tools;36.0.0"
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" --channel=0 "platforms;android-36" "build-tools;35.0.0"
+          test -f "$SDK_ROOT/platforms/android-36/android.jar"
+          test -x "$SDK_ROOT/build-tools/35.0.0/aapt2"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.3.1'
-      - name: Test scheduling math
-        run: |
-          javac -d /tmp/waker-test app/src/main/java/io/github/elsaphaba/adguardwaker/ScheduleMath.java tests/ScheduleMathTest.java
-          java -cp /tmp/waker-test io.github.elsaphaba.adguardwaker.ScheduleMathTest
+          gradle-version: '8.13'
       - run: gradle --no-daemon :app:assembleDebug :app:lintDebug
       - uses: actions/upload-artifact@v4
         with:
