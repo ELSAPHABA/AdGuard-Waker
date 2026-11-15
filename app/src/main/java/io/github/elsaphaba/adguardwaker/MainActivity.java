@@ -114,14 +114,14 @@ public final class MainActivity extends Activity {
         try { u = ScheduleMath.parseMinutes(updateMinutes.getText().toString()); }
         catch (NumberFormatException e) { updateMinutes.setError("1~10,080분"); return; }
         String pass = password.getText().toString();
-        if (master.isChecked() && pass.isBlank()) { password.setError("자동화 비밀번호가 필요합니다."); return; }
+        if (master.isChecked() && pass.trim().isEmpty()) { password.setError("자동화 비밀번호가 필요합니다."); return; }
         if (master.isChecked() && !start.isChecked() && !update.isChecked()) { toast("최소 한 가지 동작을 선택하세요."); return; }
         Scheduler.save(this, pass, master.isChecked(), start.isChecked(), s, update.isChecked(), u, exact.isChecked());
         refresh(); toast("설정을 저장했습니다.");
     }
     private void manual(String action) {
         String pass = password.getText().toString();
-        if (pass.isBlank()) { password.setError("자동화 비밀번호가 필요합니다."); return; }
+        if (pass.trim().isEmpty()) { password.setError("자동화 비밀번호가 필요합니다."); return; }
         boolean sent = Scheduler.dispatch(this, action, pass);
         refresh(); toast(sent ? "명령을 전송했습니다. AdGuard에서 결과를 확인하세요." : "전송 실패: AdGuard 설치/활성화 상태를 확인하세요.");
     }
