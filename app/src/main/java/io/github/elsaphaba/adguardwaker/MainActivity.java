@@ -1,6 +1,7 @@
 package io.github.elsaphaba.adguardwaker;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -17,6 +18,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.NumberPicker;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -57,10 +59,10 @@ public final class MainActivity extends Activity {
         master = check("자동화 활성화 (부팅 시 자동 복구)", p.getBoolean(Scheduler.MASTER, false));
         start = check("보호 시작 (start)", p.getBoolean("start_enabled", true));
         text("시작 주기 (분)", 15);
-        startMinutes = field(Integer.toString(Scheduler.minutes(p, Scheduler.START)), InputType.TYPE_CLASS_NUMBER);
+        startMinutes = minuteField("시작 주기", Scheduler.minutes(p, Scheduler.START));
         update = check("업데이트 확인 (update)", p.getBoolean("update_enabled", true));
         text("업데이트 주기 (분)", 15);
-        updateMinutes = field(Integer.toString(Scheduler.minutes(p, Scheduler.UPDATE)), InputType.TYPE_CLASS_NUMBER);
+        updateMinutes = minuteField("업데이트 주기", Scheduler.minutes(p, Scheduler.UPDATE));
         exact = check("정확한 알람 우선 사용", p.getBoolean(Scheduler.EXACT, true));
         button("설정 저장 및 적용", v -> save());
         button("지금 보호 시작", v -> manual(Scheduler.START));
@@ -97,6 +99,65 @@ public final class MainActivity extends Activity {
         t.setInputType(type); t.setSingleLine(true); t.setText(value);
         root.addView(t, new LinearLayout.LayoutParams(-1, -2)); return t;
     }
+    // The editable field is the single source of truth until Save is pressed.
+    private EditText minuteField(String title, int minutes) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setSelectAllOnFocus(true);
+        input.setText(Integer.toString(minutes));
+        input.setContentDescription(title + " (분)");
+        input.setHint("1~10080");
+        row.addView(input, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView unit = new TextView(this);
+        unit.setText("분");
+        unit.setPadding(dp(6), 0, dp(12), 0);
+        row.addView(unit);
+        Button dial = new Button(this);
+        dial.setText("다이얼");
+        dial.setAllCaps(false);
+        dial.setContentDescription(title + " 다이얼 선택");
+        dial.setOnClickListener(v -> showMinuteDial(input, title, minutes));
+        row.addView(dial);
+        root.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        return input;
+    }
+
+    private void showMinuteDial(EditText input, String title, int fallback) {
+        int initial;
+        try { initial = ScheduleMath.parseMinutes(input.getText().toString()); }
+        catch (NumberFormatException e) { initial = fallback; }
+        NumberPicker wheel = new NumberPicker(this);
+        wheel.setMinValue(ScheduleMath.MIN_MINUTES);
+        wheel.setMaxValue(ScheduleMath.MAX_MINUTES);
+        wheel.setWrapSelectorWheel(false);
+        wheel.setValue(initial);
+        // Numeric input remains available in the main screen; this dialog is wheel-only.
+        wheel.setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        wheel.setContentDescription(title + " 회전형 분 선택기");
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setGravity(android.view.Gravity.CENTER);
+        panel.setPadding(dp(24), dp(12), dp(24), dp(12));
+        panel.addView(wheel, new LinearLayout.LayoutParams(-2, -2));
+        TextView hint = new TextView(this);
+        hint.setText("분 · 1~10,080");
+        hint.setGravity(android.view.Gravity.CENTER);
+        panel.addView(hint);
+        new AlertDialog.Builder(this)
+            .setTitle(title + " (분)")
+            .setView(panel)
+            .setNegativeButton("취소", null)
+            .setPositiveButton("확인", (dialog, which) -> {
+                input.setText(Integer.toString(wheel.getValue()));
+                input.setError(null);
+            })
+            .show();
+    }
+
     private CheckBox check(String title, boolean checked) {
         CheckBox c = new CheckBox(this); c.setText(title); c.setChecked(checked); root.addView(c); return c;
     }
