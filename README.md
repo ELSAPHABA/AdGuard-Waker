@@ -39,10 +39,22 @@ JDK 17, Gradle 8.13, Android SDK Platform 36 / Build Tools 35.0.0, AGP 8.13.2, K
 Android Studio에서 프로젝트를 열거나 설치된 Gradle로 실행합니다 (바이너리 wrapper는 포함하지 않음).
 
 ```sh
-gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleOptimized :app:lintDebug :app:lintOptimized
 ```
 
-APK: `app/build/outputs/apk/debug/app-debug.apk`. Debug APK는 테스트용이며 정식 배포에는 고정된 개인 서명키로 release APK를 서명해야 합니다.
+빌드 결과는 다음과 같습니다.
+
+| 유형 | 위치 | R8 | 서명 |
+|---|---|---|---|
+| Debug | `app/build/outputs/apk/debug/app-debug.apk` | 끔 | Debug 서명 |
+| Optimized | `app/build/outputs/apk/optimized/app-optimized.apk` | 켬 (코드·리소스 축소) | Debug 서명 |
+| Release | `app/build/outputs/apk/release/app-release-unsigned.apk` (별도 빌드 필요) | 켬 | 서명 설정 없음 |
+
+`optimized`는 기존 `release`를 상속하여 R8 최적화 설정을 유지하지만, 설치 테스트를 위해 **임시 Debug 키로 서명**합니다. 공식 배포용 서명이 아닙니다. GitHub Actions의 Debug 서명키는 실행마다 달라질 수 있으므로, 기존 앱 업데이트 설치 시 서명 불일치가 발생하면 설정을 백업하고 기존 앱을 제거한 뒤 다시 설치해야 합니다. 앱 제거 시 저장된 설정이 삭제됩니다.
+
+GitHub Actions에서는 APK 두 종류를 별도의 아티팩트로 업로드하며, Actions 실행의 **Step summary**에서 압축 전 실제 APK 파일 크기와 최적화 전후 절감률을 비교할 수 있습니다. GitHub 아티팩트 ZIP 크기와 혼동하지 마세요.
+
+정식 배포에는 개인 소유의 **고정된 Release 서명키**를 별도로 설정하여 R8 최적화된 Release APK에 서명해야 합니다. 키 파일이나 비밀번호를 공개 저장소에 커밋하지 마세요.
 
 ## 수동 검증 체크리스트
 
