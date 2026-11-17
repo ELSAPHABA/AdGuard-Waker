@@ -9,10 +9,10 @@ import org.junit.Test
 class ScheduleMathTest {
     @Test fun acceptsBoundaries() {
         assertEquals(1, ScheduleMath.parseMinutes("1"))
-        assertEquals(10_080, ScheduleMath.parseMinutes(" 10080 "))
+        assertEquals(720, ScheduleMath.parseMinutes(" 720 "))
     }
     @Test fun rejectsInvalidMinutes() {
-        for (invalid in listOf("", "0", "-1", "10081", "abc", "999999999999")) {
+        for (invalid in listOf("", "0", "-1", "721", "10080", "abc", "999999999999")) {
             assertThrows(NumberFormatException::class.java) { ScheduleMath.parseMinutes(invalid) }
         }
     }
@@ -22,5 +22,6 @@ class ScheduleMathTest {
         assertTrue(ScheduleMath.due(301_000L, 301_000L))
         assertFalse(ScheduleMath.due(ScheduleMath.OFF, Long.MAX_VALUE))
         assertEquals(960_000L, ScheduleMath.next(900_000L, 1))
+        assertEquals(43_200_000L, ScheduleMath.interval(10_080))
     }
 }
