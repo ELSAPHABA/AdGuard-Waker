@@ -25,6 +25,13 @@ android {
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
         }
+        // Release-level R8 shrinking, but signed with the debug keystore for testing.
+        // This is NOT a production release signature.
+        optimized {
+            initWith release
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
+        }
     }
 }
 

@@ -36,10 +36,37 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
-      - name: Kotlin tests, APK build and lint
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+      - name: Kotlin tests, Debug and optimized APK builds, lint
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleOptimized :app:lintDebug :app:lintOptimized
+      - name: Verify optimized APK signature and compare sizes
+        shell: bash
+        run: |
+          DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
+          OPT_APK="app/build/outputs/apk/optimized/app-optimized.apk"
+          test -s "$DEBUG_APK"
+          test -s "$OPT_APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$OPT_APK"
+          DEBUG_BYTES=$(wc -c < "$DEBUG_APK")
+          OPT_BYTES=$(wc -c < "$OPT_APK")
+          REDUCTION=$(awk -v d="$DEBUG_BYTES" -v o="$OPT_BYTES" 'BEGIN { printf "%.1f", (d-o)*100/d }')
+          {
+            echo "## AdGuard Waker APK size comparison"
+            echo "| Variant | APK bytes | Size (KiB) |"
+            echo "|---|---:|---:|"
+            echo "| Debug (unoptimized) | $DEBUG_BYTES | $(awk -v b="$DEBUG_BYTES" 'BEGIN {printf "%.1f", b/1024}') |"
+            echo "| Optimized (R8, debug-signed) | $OPT_BYTES | $(awk -v b="$OPT_BYTES" 'BEGIN {printf "%.1f", b/1024}') |"
+            echo ""
+            echo "**Reduction: $REDUCTION%**"
+            echo ""
+            echo "These are APK file sizes, not GitHub artifact ZIP sizes."
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: AdGuard-Waker-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AdGuard-Waker-optimized
+          path: app/build/outputs/apk/optimized/app-optimized.apk
           if-no-files-found: error
