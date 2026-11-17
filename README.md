@@ -1,18 +1,20 @@
 # AdGuard Waker
 
-Android용 AdGuard 전용 자동화 앱. Tasker, 루트, 상주 서비스 없이 AdGuard 공식 자동화 Broadcast Intent를 이용합니다. AGPL-3.0 (기존 LICENSE 유지).
+Android용 AdGuard 자동화 앱. 루트 및 상주 서비스 없이 AdGuard 공식 자동화 Broadcast Intent를 이용합니다. AGPL-3.0 (기존 LICENSE 유지).
 
 ## 기능
 
 - `start` (보호 시작)과 `update` (필터 및 앱 업데이트 확인)의 개별 활성화 및 1~10,080분 주기.
-- 각 주기는 숫자 키패드로 직접 입력하거나, 다이얼 버튼을 눌러 회전형 숫자 선택기에서 설정합니다. 확인 후 설정 저장 및 적용을 누릅니다.
+- 각 주기는 숫자 키패드로 직접 입력하거나, 다이얼 버튼을 눌러 회전형 숫자 선택기에서 설정합니다. 확인 후 설정 저장 및 적용을 누르거나, 뒤로가기로 나가면 자동 저장됩니다.
 - 기본값: 시작 5분, 업데이트 확인 60분. 최초 자동화는 꺼져 있습니다.
 - 활성화 시 보호 시작을 즉시 요청하고, 업데이트는 첫 주기 이후 요청합니다. 재부팅 후 최초 잠금 해제 시 동일하게 복구합니다.
 - 정확한 알람 권한이 있으면 exact alarm, 없으면 inexact alarm으로 폴백. 하나의 알람으로 두 작업을 처리하고 15분 주기의 시스템 JobScheduler로 복구를 보조합니다.
 - 자체 알림, foreground service, 네트워크 권한, 외부 런타임 라이브러리 없음.
 - AdGuard 4.x receiver 우선, 이전 receiver 호환 경로. quiet=true로 toast 억제 요청.
 - 비밀번호는 앱 전용 SharedPreferences에 저장(별도 암호화 없음, 백업 제외). 명령 전송 시에만 AdGuard에 전달합니다.
-- 최근 명령 전송 시도 및 다음 목표 시각 표시. 한국어 UI, 시스템 다크 모드 지원.
+- 뒤로가기·제스처로 앱을 나가거나 다른 앱으로 전환할 때 유효한 설정 자동 저장. 숫자 입력이 미완성이라면 해당 주기의 기존 정상값 보존.
+- 실행 설정 간 시각적 간격 추가, 최근 명령 전송 시도 및 다음 목표 시각을 보여 주는 별도 상태 카드. 한국어 UI, 시스템 다크 모드 지원.
+- Java 소스 전체를 Kotlin으로 변경하였으며, Kotlin 2.4.20과 JUnit4 테스트 사용.
 
 ## 설치 및 설정
 
@@ -33,13 +35,11 @@ Waker는 자체 상태바 알림을 만들지 않지만 AdGuard 및 Android의 V
 
 ## 빌드
 
-JDK 17, Gradle 8.13, Android SDK Platform 36 / Build Tools 35.0.0, AGP 8.13.2.
+JDK 17, Gradle 8.13, Android SDK Platform 36 / Build Tools 35.0.0, AGP 8.13.2, Kotlin 2.4.20.
 Android Studio에서 프로젝트를 열거나 설치된 Gradle로 실행합니다 (바이너리 wrapper는 포함하지 않음).
 
 ```sh
-gradle --no-daemon :app:assembleDebug :app:lintDebug
-javac -d /tmp/waker-test app/src/main/java/io/github/elsaphaba/adguardwaker/ScheduleMath.java tests/ScheduleMathTest.java
-java -cp /tmp/waker-test io.github.elsaphaba.adguardwaker.ScheduleMathTest
+gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
 ```
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`. Debug APK는 테스트용이며 정식 배포에는 고정된 개인 서명키로 release APK를 서명해야 합니다.
@@ -49,6 +49,7 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`. Debug APK는 테스트용이�
 - 올바른/틀린 비밀번호, AdGuard 미설치, 외부 자동화 해제.
 - 키패드와 다이얼로 각각 1분/10,080분 입력, 잘못된 입력 거부, 다이얼 취소 및 확인, 저장 후 재실행.
 - 1분/5분/60분 주기, 개별 동작 켜기/끄기, 주기 변경 및 앱 종료 후 재예약.
+- 뒤로가기로 저장 버튼 없이 나가기, 시스템 설정으로 이동, 앱 전환 및 재실행 시 설정 유지 확인.
 - 정확한 알람 허용/거부/취소 후 앱 열기 또는 복구 작업 확인.
 - 화면 꺼짐, Doze, 배터리 제한, 재부팅 및 최초 잠금 해제, 앱 업데이트.
 - Android 12/13/14/15/16/17에서 실제 AdGuard와 검증.
