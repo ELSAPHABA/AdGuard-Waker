@@ -2,7 +2,7 @@ package io.github.elsaphaba.adguardwaker
 
 internal object ScheduleMath {
     const val MIN_MINUTES = 1
-    const val MAX_MINUTES = 10_080
+    const val MAX_MINUTES = 720
     const val OFF = Long.MAX_VALUE
 
     fun parseMinutes(input: String): Int {

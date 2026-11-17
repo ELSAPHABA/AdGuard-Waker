@@ -8,10 +8,14 @@ import android.graphics.Insets
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -39,6 +43,9 @@ class MainActivity : Activity() {
     private lateinit var overviewStatus: TextView
     private lateinit var startStatus: TextView
     private lateinit var updateStatus: TextView
+
+    private val autoSaveHandler = Handler(Looper.getMainLooper())
+    private var pendingAutoSave: Runnable? = null
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         if (::overviewStatus.isInitialized) refresh()
@@ -105,23 +112,16 @@ class MainActivity : Activity() {
                 Uri.parse("package:$packageName")
             ))
         }
-        button("배터리 최적화 설정") {
-            openSettings(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-        }
+        button("배터리 최적화 설정") { openBatterySettingsForWaker() }
         button("AdGuard 열기") {
             val launch = packageManager.getLaunchIntentForPackage(AdGuard.PACKAGE)
             if (launch == null) toast("AdGuard를 열 수 없습니다.") else openSettings(launch)
         }
 
         addStatusCard()
-        space(12)
-        text(
-            "설정은 저장 버튼을 누르지 않고 뒤로가기로 나가거나 다른 앱으로 전환해도 자동 저장됩니다. " +
-                "주기는 1~10,080분이며 절전 모드에서는 실행이 지연될 수 있습니다. " +
-                "명령 전송은 실제 보호 상태나 업데이트 성공을 보증하지 않습니다. " +
-                "AdGuard 자체 알림과 VPN 아이콘은 이 앱에서 제어하지 않습니다.",
-            14
-        )
+        enableAutoSave()
+        // Normalize old intervals when upgrading from versions with a larger upper bound.
+        saveSettings(showErrors = false)
     }
 
     override fun onResume() {
@@ -137,12 +137,44 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
-        // Both navigation-bar back and gesture navigation end in onStop.
-        // Also persist settings when the user switches apps or opens system settings.
+        flushAutoSave() // Save even if the debounce window has not elapsed.
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        pendingAutoSave?.let(autoSaveHandler::removeCallbacks)
+        pendingAutoSave = null
+        super.onDestroy()
+    }
+
+    private fun enableAutoSave() {
+        val watcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) { queueAutoSave() }
+        }
+        listOf(password, startMinutes, updateMinutes).forEach { it.addTextChangedListener(watcher) }
+        listOf(master, start, update, exact).forEach {
+            it.setOnCheckedChangeListener { _, _ -> flushAutoSave() }
+        }
+    }
+
+    private fun queueAutoSave() {
+        pendingAutoSave?.let(autoSaveHandler::removeCallbacks)
+        val task = Runnable {
+            pendingAutoSave = null
+            saveSettings(showErrors = false)
+        }
+        pendingAutoSave = task
+        autoSaveHandler.postDelayed(task, 650L)
+    }
+
+    private fun flushAutoSave() {
+        pendingAutoSave?.let(autoSaveHandler::removeCallbacks)
+        pendingAutoSave = null
         if (::startMinutes.isInitialized && ::updateMinutes.isInitialized) {
             saveSettings(showErrors = false)
         }
-        super.onStop()
     }
 
     private fun text(value: String, size: Int): TextView =
@@ -190,7 +222,7 @@ class MainActivity : Activity() {
             setSingleLine(true)
             setSelectAllOnFocus(true)
             setText(minutes.toString())
-            hint = "1~10080"
+            hint = "1~720"
             contentDescription = "$title (분)"
         }
         row.addView(input, LinearLayout.LayoutParams(0, -2, 1f))
@@ -228,7 +260,7 @@ class MainActivity : Activity() {
             setPadding(dp(24), dp(12), dp(24), dp(12))
             addView(wheel, LinearLayout.LayoutParams(-2, -2))
             addView(TextView(this@MainActivity).apply {
-                text = "분 · 1~10,080"
+                text = "분 · 1~720"
                 gravity = Gravity.CENTER
             })
         }
@@ -239,6 +271,7 @@ class MainActivity : Activity() {
             .setPositiveButton("확인") { _, _ ->
                 input.setText(wheel.value.toString())
                 input.error = null
+                flushAutoSave()
             }
             .show()
     }
@@ -285,11 +318,25 @@ class MainActivity : Activity() {
     private fun toast(value: String) = Toast.makeText(this, value, Toast.LENGTH_SHORT).show()
 
     private fun openSettings(intent: Intent) {
+        if (!tryOpenSettings(intent)) toast("이 기기에서 해당 화면을 열 수 없습니다.")
+    }
+
+    private fun tryOpenSettings(intent: Intent): Boolean =
         try {
             startActivity(intent)
+            true
         } catch (_: RuntimeException) {
-            toast("이 기기에서 해당 화면을 열 수 없습니다.")
+            false
         }
+
+    private fun openBatterySettingsForWaker() {
+        val target = Uri.parse("package:$packageName")
+        // AOSP's app-specific battery details action is not public SDK API.
+        // Unsupported vendor ROMs fall back to the public app-information page,
+        // which still selects and identifies AdGuard Waker automatically.
+        if (tryOpenSettings(Intent("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", target))) return
+        if (tryOpenSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, target))) return
+        openSettings(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
     }
 
     private fun saveSettings(showErrors: Boolean): Boolean {
@@ -298,7 +345,7 @@ class MainActivity : Activity() {
             ScheduleMath.parseMinutes(startMinutes.text.toString())
         } catch (_: NumberFormatException) {
             if (showErrors) {
-                startMinutes.error = "1~10,080분을 입력하세요."
+                startMinutes.error = "1~720분을 입력하세요."
                 return false
             }
             // Preserve the last valid interval instead of persisting incomplete keyboard input.
@@ -308,7 +355,7 @@ class MainActivity : Activity() {
             ScheduleMath.parseMinutes(updateMinutes.text.toString())
         } catch (_: NumberFormatException) {
             if (showErrors) {
-                updateMinutes.error = "1~10,080분을 입력하세요."
+                updateMinutes.error = "1~720분을 입력하세요."
                 return false
             }
             Scheduler.minutes(p, Scheduler.UPDATE)
@@ -327,8 +374,8 @@ class MainActivity : Activity() {
             master.isChecked != p.getBoolean(Scheduler.MASTER, false) ||
             start.isChecked != p.getBoolean("start_enabled", true) ||
             update.isChecked != p.getBoolean("update_enabled", true) ||
-            startValue != Scheduler.minutes(p, Scheduler.START) ||
-            updateValue != Scheduler.minutes(p, Scheduler.UPDATE) ||
+            startValue != p.getInt(Scheduler.START + "_minutes", 5) ||
+            updateValue != p.getInt(Scheduler.UPDATE + "_minutes", 60) ||
             exact.isChecked != p.getBoolean(Scheduler.EXACT, true)
 
         if (changed) {

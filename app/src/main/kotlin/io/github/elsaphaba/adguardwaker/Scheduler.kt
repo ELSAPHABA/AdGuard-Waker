@@ -28,6 +28,7 @@ internal object Scheduler {
 
     fun minutes(p: SharedPreferences, action: String): Int =
         p.getInt(action + "_minutes", if (action == START) 5 else 60)
+            .coerceIn(ScheduleMath.MIN_MINUTES, ScheduleMath.MAX_MINUTES)
 
     fun enabled(p: SharedPreferences, action: String): Boolean =
         p.getBoolean(MASTER, false) &&
@@ -61,12 +62,12 @@ internal object Scheduler {
             .putBoolean(EXACT, exact)
 
         if (!master || !start || password.isEmpty()) e.remove(START + "_due")
-        else if (!wasStartEnabled || changedPassword) e.putLong(START + "_due", now)
-        else if (minutes(p, START) != startMinutes)
+        else if (!wasStartEnabled) e.putLong(START + "_due", now)
+        else if (changedPassword || p.getInt(START + "_minutes", 5) != startMinutes)
             e.putLong(START + "_due", ScheduleMath.next(now, startMinutes))
 
         if (!master || !update || password.isEmpty()) e.remove(UPDATE + "_due")
-        else if (!wasUpdateEnabled || changedPassword || minutes(p, UPDATE) != updateMinutes)
+        else if (!wasUpdateEnabled || changedPassword || p.getInt(UPDATE + "_minutes", 60) != updateMinutes)
             e.putLong(UPDATE + "_due", ScheduleMath.next(now, updateMinutes))
         e.commit()
         reconcile(context, false)
@@ -75,6 +76,22 @@ internal object Scheduler {
     fun reconcile(context: Context, bootBroadcast: Boolean) {
         val p = prefs(context)
         val now = SystemClock.elapsedRealtime()
+        // Existing users may have a 721–10,080 minute interval from older releases.
+        // Clamp both the stored value and its pending deadline even if the UI is not opened.
+        val migration = p.edit()
+        var migrated = false
+        for (action in listOf(START, UPDATE)) {
+            val oldValue = p.getInt(action + "_minutes", if (action == START) 5 else 60)
+            val limited = oldValue.coerceIn(ScheduleMath.MIN_MINUTES, ScheduleMath.MAX_MINUTES)
+            if (oldValue != limited) {
+                migration.putInt(action + "_minutes", limited)
+                if (enabled(p, action)) {
+                    migration.putLong(action + "_due", ScheduleMath.next(now, limited))
+                }
+                migrated = true
+            }
+        }
+        if (migrated) migration.commit()
         val boot = bootCount(context)
         val reset = (boot != -1 && boot != p.getInt("boot", -1)) ||
             (bootBroadcast && boot == -1)
