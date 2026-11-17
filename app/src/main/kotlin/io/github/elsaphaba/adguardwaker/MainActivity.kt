@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 import android.graphics.Insets
 import android.graphics.Typeface
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -75,7 +76,7 @@ class MainActivity : Activity() {
         setContentView(scroll)
         scroll.requestApplyInsets()
 
-        text("AdGuard Waker", 29)
+        text("AdGuard Waker", 29).setTypeface(null, Typeface.BOLD)
         val p = Scheduler.prefs(this)
 
         text("AdGuard 자동화 비밀번호", 17)
@@ -112,7 +113,7 @@ class MainActivity : Activity() {
                 Uri.parse("package:$packageName")
             ))
         }
-        button("배터리 최적화 설정") { openDeviceBatterySettings() }
+        button("배터리 최적화 설정") { openBatterySettingsForWaker() }
         button("AdGuard 열기") {
             val launch = packageManager.getLaunchIntentForPackage(AdGuard.PACKAGE)
             if (launch == null) toast("AdGuard를 열 수 없습니다.") else openSettings(launch)
@@ -329,14 +330,26 @@ class MainActivity : Activity() {
             false
         }
 
-    private fun openDeviceBatterySettings() {
-        // Go straight from Waker to the PHONE'S Battery page.
-        // No Waker-specific battery detail page or App Info intermediary.
-        if (tryOpenSettings(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))) return
-        // Some manufacturers omit the battery overview intent; use other battery
-        // settings destinations instead of opening an unrelated app information page.
-        if (tryOpenSettings(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS))) return
-        openSettings(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+    private fun openBatterySettingsForWaker() {
+        val packageUri = Uri.parse("package:$packageName")
+        // AOSP app-specific battery settings deep link (hidden API action string).
+        // Galaxy One UI often routes Settings through com.android.settings.
+        val action = "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL"
+        if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) {
+            val samsungSettings = Intent(action, packageUri)
+                .setPackage("com.android.settings")
+                .putExtra(Intent.EXTRA_PACKAGE_NAME, packageName)
+            if (tryOpenSettings(samsungSettings)) return
+        }
+        // Other Android implementations may expose an implicit handler.
+        if (tryOpenSettings(Intent(action, packageUri).putExtra(Intent.EXTRA_PACKAGE_NAME, packageName))) return
+        // No public cross-OEM guarantee for the app's Battery subpage:
+        // fall back to the correct app's OS settings, never to the device battery log.
+        if (tryOpenSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri))) {
+            toast("앱 정보에서 '배터리'를 선택하세요.")
+            return
+        }
+        toast("이 기기는 앱별 배터리 설정 바로가기를 지원하지 않습니다.")
     }
 
     private fun saveSettings(showErrors: Boolean): Boolean {

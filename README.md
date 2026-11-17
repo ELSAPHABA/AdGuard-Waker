@@ -18,7 +18,7 @@ Tasker류 어플리케이션은 무겁고 유료이기 때문에 초경량 무�
 - AdGuard 4.x receiver 우선, 이전 receiver 호환 경로. quiet=true로 toast 억제 요청.
 - 비밀번호는 앱 전용 SharedPreferences에 저장(별도 암호화 없음, 백업 제외). 명령 전송 시에만 AdGuard에 전달합니다.
 - 뒤로가기·제스처, 앱 전환 시에도 유효한 설정을 저장합니다. 미완성/범위 초과 숫자 입력은 기존 유효한 주기를 유지합니다. 기존 720분 초과 주기는 업데이트 시 720분으로 보정하고 예정 시각을 재설정합니다.
-- 실행 설정 간 시각적 간격 및 상태 카드 유지, 하단 도움말 문단 삭제. 배터리 최적화 버튼은 중간 앱 정보 화면 없이 휴대폰 시스템의 배터리 사용량 화면(`ACTION_POWER_USAGE_SUMMARY`)으로 직접 이동합니다. 지원되지 않는 기기는 배터리 절약 설정, 배터리 최적화 관리 설정 순으로 이동을 시도합니다. 제조사마다 실제 설정 화면은 다를 수 있으며, AdGuard Waker 항목을 자동 선택하거나 강조하지는 않습니다.
+- 최상단 AdGuard Waker 제목을 굵게 표시합니다. 배터리 최적화 버튼은 삼성 갤럭시에서 AdGuard Waker 앱의 배터리 설정 상세 화면(`android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL`, `package:io.github.elsaphaba.adguardwaker`)을 바로 열도록 먼저 시도합니다. 해당 비공개 액션을 지원하지 않는 기기에서는 Waker 앱 정보 화면으로 이동하며 배터리 항목은 수동 선택해야 합니다. 기종과 One UI 버전에 따라 다를 수 있습니다.
 - Java 소스 전체를 Kotlin으로 변경하였으며, Kotlin 2.4.20과 JUnit4 테스트 사용.
 
 ## 설치 및 설정
@@ -52,13 +52,34 @@ gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleOptimi
 | 유형 | 위치 | R8 | 서명 |
 |---|---|---|---|
 | Debug | `app/build/outputs/apk/debug/app-debug.apk` | 끔 | Debug 서명 |
-| Optimized | `app/build/outputs/apk/optimized/app-optimized.apk` | 켬 (코드·리소스 축소) | Debug 서명 |
-| Release | `app/build/outputs/apk/release/app-release-unsigned.apk` (별도 빌드 필요) | 켬 | 서명 설정 없음 |
+| Optimized test | `app/build/outputs/apk/optimized/app-optimized.apk` | 켬 | 매번 달라질 수 있는 Debug 서명 |
+| Release | `app/build/outputs/apk/release/app-release.apk` (아래 4개 Secrets 설정 후 main CI 빌드) | 켬 | 고정 개인 서명키 |
 
-`optimized`는 기존 `release`를 상속하여 R8 최적화 설정을 유지하지만, 설치 테스트를 위해 **임시 Debug 키로 서명**합니다. 공식 배포용 서명이 아닙니다. GitHub Actions의 Debug 서명키는 실행마다 달라질 수 있으므로, 기존 앱 업데이트 설치 시 서명 불일치가 발생하면 설정을 백업하고 기존 앱을 제거한 뒤 다시 설치해야 합니다. 앱 제거 시 저장된 설정이 삭제됩니다.
+**업데이트 설치용 APK는 `AdGuard-Waker-release-stable`만 사용하세요.** 이전 CI의 Debug/Optimized APK는 실행마다 서명 인증서가 달라질 수 있어 업데이트 설치가 실패합니다. 서명 일치와 새로운 `versionCode`가 모두 필요합니다. 기존 임시 서명 APK에서 고정 서명 APK로 전환하는 첫 설치는 일반 업데이트가 불가능합니다. 기존 설정이 필요한 경우 앱 삭제 전에 보존 방법을 별도로 마련하세요(앱은 백업 기능을 제공하지 않음). 이후에는 같은 키로 서명한 Release APK 사이에서 설정을 유지하는 업데이트 설치가 가능합니다.
 
-GitHub Actions에서는 APK 두 종류를 별도의 아티팩트로 업로드하며, Actions 실행의 **Step summary**에서 압축 전 실제 APK 파일 크기와 최적화 전후 절감률을 비교할 수 있습니다. GitHub 아티팩트 ZIP 크기와 혼동하지 마세요.
+### 영구 서명키 최초 1회 설정
 
-정식 배포에는 개인 소유의 **고정된 Release 서명키**를 별도로 설정하여 R8 최적화된 Release APK에 서명해야 합니다. 키 파일이나 비밀번호를 공개 저장소에 커밋하지 마세요.
+1. JDK가 설치된 신뢰할 수 있는 컴퓨터에서 아래 명령어를 실행해 비공개 서명키를 생성합니다.
+
+```bash
+keytool -genkeypair -v -keystore adguard-waker-release.jks -storetype PKCS12 -alias adguard-waker -keyalg RSA -keysize 3072 -validity 10000
+```
+
+2. 키 파일을 **외부 안전한 장소에 백업**합니다. 비밀번호도 별도 보관합니다. 키가 유실되면 같은 인증서로 업데이트를 배포할 수 없습니다.
+3. 키 파일을 Base64로 인코딩합니다: Linux에서는 `base64 -w0 adguard-waker-release.jks`, Windows PowerShell에서는 `[Convert]::ToBase64String([IO.File]::ReadAllBytes("adguard-waker-release.jks"))`.
+4. GitHub 저장소의 **Settings → Secrets and variables → Actions → New repository secret**에서 아래 네 가지 Secret을 생성합니다.
+
+| Secret 이름 | 값 |
+|---|---|
+| `WAKER_SIGNING_KEYSTORE_BASE64` | Base64 인코딩한 키 파일 전체 |
+| `WAKER_SIGNING_STORE_PASSWORD` | 키 저장소 비밀번호 |
+| `WAKER_SIGNING_KEY_ALIAS` | `adguard-waker` |
+| `WAKER_SIGNING_KEY_PASSWORD` | 키 비밀번호 (별도 질문이 없었다면 저장소 비밀번호와 같을 수 있음) |
+
+5. 위 설정 후 **main 브랜치**에서 GitHub Actions의 Android build 워크플로를 실행합니다. PR 빌드에서는 안전을 위해 비공개 서명키를 사용하지 않습니다. Secret이 없으면 기존 Debug 및 임시 Optimized 테스트 APK만 생성되고 Release APK는 생략됩니다.
+
+6. 생성된 **`AdGuard-Waker-release-stable`** 아티팩트에서 APK를 내려받습니다. main CI는 매 실행 `10000 + GITHUB_RUN_NUMBER`를 사용하여 `versionCode`가 계속 증가합니다. 로컬 빌드는 기본 `versionCode=3`, `versionName=1.2.0`입니다. CI 배포 앱 위에 로컬 기본 빌드를 덮어쓰면 버전 다운그레이드 오류가 날 수 있습니다.
+
+GitHub Actions Step summary에서 APK 크기와 서명 인증서 SHA-256 지문을 확인할 수 있습니다. **개인 서명키 또는 비밀번호를 공개 저장소에 커밋하지 마세요.**
 
 참고: [AdGuard 공식 자동화 문서](https://adguard.com/kb/ko/adguard-for-android/solving-problems/tasker/) · [Android alarm](https://developer.android.com/develop/background-work/services/alarms) · [Doze](https://developer.android.com/training/monitoring-device-state/doze-standby).

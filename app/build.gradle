@@ -3,17 +3,38 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// Persistent signer is intentionally supplied only through private environment
+// variables (e.g. GitHub Actions Secrets). Never commit a signing keystore.
+def keyPath = System.getenv('WAKER_KEYSTORE_PATH')
+def persistentStorePass = System.getenv('WAKER_KEYSTORE_PASSWORD')
+def persistentAlias = System.getenv('WAKER_KEY_ALIAS')
+def persistentKeyPass = System.getenv('WAKER_KEY_PASSWORD')
+def hasStableSigning = [keyPath, persistentStorePass, persistentAlias, persistentKeyPass].every {
+    it != null && !it.isEmpty()
+}
+
 android {
     namespace 'io.github.elsaphaba.adguardwaker'
     compileSdk 36
     buildToolsVersion '35.0.0'
 
+    signingConfigs {
+        if (hasStableSigning) {
+            persistent {
+                storeFile file(keyPath)
+                storePassword persistentStorePass
+                keyAlias persistentAlias
+                keyPassword persistentKeyPass
+            }
+        }
+    }
     defaultConfig {
         applicationId 'io.github.elsaphaba.adguardwaker'
         minSdk 31
         targetSdk 36
-        versionCode 2
-        versionName '1.1.0'
+        // GitHub main builds provide a monotonically increasing run-based code.
+        versionCode Integer.parseInt(System.getenv('WAKER_VERSION_CODE') ?: '3')
+        versionName (System.getenv('WAKER_VERSION_NAME') ?: '1.2.0')
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -24,9 +45,12 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            if (hasStableSigning) {
+                signingConfig signingConfigs.persistent
+            }
         }
-        // Release-level R8 shrinking, but signed with the debug keystore for testing.
-        // This is NOT a production release signature.
+        // Install testing only: the runner's debug signer is temporary.
+        // NOT suitable for upgrading a previous CI build on a phone.
         optimized {
             initWith release
             signingConfig signingConfigs.debug

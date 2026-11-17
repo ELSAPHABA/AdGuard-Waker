@@ -36,6 +36,36 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+      - name: Set monotonic app version for main-branch builds
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          echo "WAKER_VERSION_CODE=$((10000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "WAKER_VERSION_NAME=1.2.0-ci.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+      - name: Restore persistent release signing key
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          SIGNING_KEYSTORE_B64: ${{ secrets.WAKER_SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.WAKER_SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.WAKER_SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.WAKER_SIGNING_KEY_PASSWORD }}
+        run: |
+          if [[ -z "$SIGNING_KEYSTORE_B64" || -z "$SIGNING_STORE_PASSWORD" || -z "$SIGNING_KEY_ALIAS" || -z "$SIGNING_KEY_PASSWORD" ]]; then
+            echo "Release APK skipped: configure all four WAKER_SIGNING_* GitHub Actions secrets." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          KEY_FILE="$RUNNER_TEMP/adguard-waker-release.jks"
+          printf '%s' "$SIGNING_KEYSTORE_B64" | base64 --decode > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          keytool -list -keystore "$KEY_FILE" -storepass "$SIGNING_STORE_PASSWORD" -alias "$SIGNING_KEY_ALIAS" >/dev/null
+          {
+            echo "WAKER_KEYSTORE_PATH=$KEY_FILE"
+            echo "WAKER_KEYSTORE_PASSWORD=$SIGNING_STORE_PASSWORD"
+            echo "WAKER_KEY_ALIAS=$SIGNING_KEY_ALIAS"
+            echo "WAKER_KEY_PASSWORD=$SIGNING_KEY_PASSWORD"
+            echo "WAKER_PERSISTENT_SIGNING=true"
+          } >> "$GITHUB_ENV"
       - name: Kotlin tests, Debug and optimized APK builds, lint
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleOptimized :app:lintDebug :app:lintOptimized
       - name: Verify optimized APK signature and compare sizes
@@ -60,6 +90,23 @@ jobs:
             echo ""
             echo "These are APK file sizes, not GitHub artifact ZIP sizes."
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Build and verify persistently signed R8 release APK
+        if: env.WAKER_PERSISTENT_SIGNING == 'true'
+        shell: bash
+        run: |
+          gradle --no-daemon :app:assembleRelease :app:lintRelease
+          RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$RELEASE_APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$RELEASE_APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$RELEASE_APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release versionCode: $WAKER_VERSION_CODE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload persistently signed R8 release APK
+        if: env.WAKER_PERSISTENT_SIGNING == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: AdGuard-Waker-release-stable
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: AdGuard-Waker-debug
@@ -67,6 +114,6 @@ jobs:
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: AdGuard-Waker-optimized
+          name: AdGuard-Waker-optimized-ephemeral-test
           path: app/build/outputs/apk/optimized/app-optimized.apk
           if-no-files-found: error
