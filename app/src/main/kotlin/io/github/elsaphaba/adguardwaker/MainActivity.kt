@@ -112,7 +112,7 @@ class MainActivity : Activity() {
                 Uri.parse("package:$packageName")
             ))
         }
-        button("배터리 최적화 설정") { openBatterySettingsForWaker() }
+        button("배터리 최적화 설정") { openDeviceBatterySettings() }
         button("AdGuard 열기") {
             val launch = packageManager.getLaunchIntentForPackage(AdGuard.PACKAGE)
             if (launch == null) toast("AdGuard를 열 수 없습니다.") else openSettings(launch)
@@ -329,13 +329,13 @@ class MainActivity : Activity() {
             false
         }
 
-    private fun openBatterySettingsForWaker() {
-        val target = Uri.parse("package:$packageName")
-        // AOSP's app-specific battery details action is not public SDK API.
-        // Unsupported vendor ROMs fall back to the public app-information page,
-        // which still selects and identifies AdGuard Waker automatically.
-        if (tryOpenSettings(Intent("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", target))) return
-        if (tryOpenSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, target))) return
+    private fun openDeviceBatterySettings() {
+        // Go straight from Waker to the PHONE'S Battery page.
+        // No Waker-specific battery detail page or App Info intermediary.
+        if (tryOpenSettings(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))) return
+        // Some manufacturers omit the battery overview intent; use other battery
+        // settings destinations instead of opening an unrelated app information page.
+        if (tryOpenSettings(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS))) return
         openSettings(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
     }
 
