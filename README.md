@@ -2,6 +2,10 @@
 
 Android용 AdGuard 자동화 앱. 루트 및 상주 서비스 없이 AdGuard 공식 자동화 Broadcast Intent를 이용합니다. AGPL-3.0 (기존 LICENSE 유지).
 
+## 제작 이유
+
+AdGuard를 비활성화 하신 후 다시 활성화를 까먹으시는 부모님을 위해 제작함.
+
 ## 기능
 
 - `start` (보호 시작)과 `update` (필터 및 앱 업데이트 확인)의 개별 활성화 및 1~720분 주기.
@@ -55,17 +59,5 @@ gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleOptimi
 GitHub Actions에서는 APK 두 종류를 별도의 아티팩트로 업로드하며, Actions 실행의 **Step summary**에서 압축 전 실제 APK 파일 크기와 최적화 전후 절감률을 비교할 수 있습니다. GitHub 아티팩트 ZIP 크기와 혼동하지 마세요.
 
 정식 배포에는 개인 소유의 **고정된 Release 서명키**를 별도로 설정하여 R8 최적화된 Release APK에 서명해야 합니다. 키 파일이나 비밀번호를 공개 저장소에 커밋하지 마세요.
-
-## 수동 검증 체크리스트
-
-- 올바른/틀린 비밀번호, AdGuard 미설치, 외부 자동화 해제.
-- 키패드와 다이얼로 각각 1분/720분 입력, 721분 이상 거부, 다이얼 취소 및 확인, 자동 저장 후 재실행.
-- 1분/5분/60분 주기, 개별 동작 켜기/끄기, 주기 변경 및 앱 종료 후 재예약.
-- 키 입력 디바운스, 토글 즉시 저장, 다이얼 확인 후 즉시 저장, 뒤로가기/앱 전환 중 저장, 비밀번호 입력 중 불필요한 재시작 방지, 기존 720분 초과 주기 마이그레이션 확인.
-- 배터리 버튼으로 별도 앱 정보 화면 없이 폰 설정의 배터리 페이지가 바로 열리는지 확인. 해당 Intent 미지원 기기에서 배터리 절약 설정 또는 배터리 최적화 관리 화면으로 이동하는지 확인.
-- 정확한 알람 허용/거부/취소 후 앱 열기 또는 복구 작업 확인.
-- 화면 꺼짐, Doze, 배터리 제한, 재부팅 및 최초 잠금 해제, 앱 업데이트.
-- Android 12/13/14/15/16/17에서 실제 AdGuard와 검증.
-- Waker의 자체 알림 없음, AdGuard VPN 알림은 별개.
 
 참고: [AdGuard 공식 자동화 문서](https://adguard.com/kb/ko/adguard-for-android/solving-problems/tasker/) · [Android alarm](https://developer.android.com/develop/background-work/services/alarms) · [Doze](https://developer.android.com/training/monitoring-device-state/doze-standby).
