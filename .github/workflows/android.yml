@@ -15,10 +15,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Test scheduling math
-        run: |
-          javac -d /tmp/waker-test app/src/main/java/io/github/elsaphaba/adguardwaker/ScheduleMath.java tests/ScheduleMathTest.java
-          java -cp /tmp/waker-test io.github.elsaphaba.adguardwaker.ScheduleMathTest
       - name: Install Android SDK packages
         shell: bash
         run: |
@@ -40,7 +36,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
-      - run: gradle --no-daemon :app:assembleDebug :app:lintDebug
+      - name: Kotlin tests, APK build and lint
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
       - uses: actions/upload-artifact@v4
         with:
           name: AdGuard-Waker-debug
