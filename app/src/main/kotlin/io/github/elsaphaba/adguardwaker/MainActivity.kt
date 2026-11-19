@@ -472,29 +472,59 @@ class MainActivity : Activity() {
         if (!::overviewStatus.isInitialized) return
         val p = Scheduler.prefs(this)
         val power = getSystemService(PowerManager::class.java)
-        overviewStatus.text =
-            "저장된 자동화: " + (if (p.getBoolean(Scheduler.MASTER, false)) "활성" else "비활성") +
-            "\nAdGuard 인터페이스: " + (if (AdGuard.receiver(this) != null) "찾음" else "찾을 수 없음") +
-            "\n알람: " + (if (p.getBoolean(Scheduler.EXACT, true) && Scheduler.exactAvailable(this))
-                "정확한 알람 우선" else "비정확 알람 (절전 시 지연 가능)") +
-            "\n배터리 최적화: " + (if (power.isIgnoringBatteryOptimizations(packageName))
-                "제외됨" else "적용 중")
+        overviewStatus.text = listOf(
+            getString(
+                R.string.status_saved_automation,
+                getString(if (p.getBoolean(Scheduler.MASTER, false))
+                    R.string.status_active else R.string.status_inactive)
+            ),
+            getString(
+                R.string.status_adguard_interface,
+                getString(if (AdGuard.receiver(this) != null)
+                    R.string.status_found else R.string.status_not_found)
+            ),
+            getString(
+                R.string.status_alarm,
+                getString(if (p.getBoolean(Scheduler.EXACT, true) && Scheduler.exactAvailable(this))
+                    R.string.status_alarm_exact else R.string.status_alarm_inexact)
+            ),
+            getString(
+                R.string.status_battery,
+                getString(if (power.isIgnoringBatteryOptimizations(packageName))
+                    R.string.status_battery_excluded else R.string.status_battery_applied)
+            )
+        ).joinToString("\n")
 
-        startStatus.text = formatActionStatus(p, Scheduler.START, "보호 시작 · start")
-        updateStatus.text = formatActionStatus(p, Scheduler.UPDATE, "업데이트 확인 · update")
+        startStatus.text = formatActionStatus(p, Scheduler.START, getString(R.string.status_start))
+        updateStatus.text = formatActionStatus(p, Scheduler.UPDATE, getString(R.string.status_update))
     }
 
-    private fun formatActionStatus(p: SharedPreferences, action: String, label: String): String {
+    private fun formatActionStatus(
+        p: SharedPreferences, action: String, label: String
+    ): String {
         val due = Scheduler.deadline(p, action)
-        val next = if (due == ScheduleMath.OFF) "없음" else {
+        val next = if (due == ScheduleMath.OFF) getString(R.string.status_none) else
             format(System.currentTimeMillis() + maxOf(0L, due - SystemClock.elapsedRealtime()))
-        }
+
         val last = p.getLong(action + "_last", 0)
-        val attempt = if (last == 0L) "없음" else {
-            format(last) + if (p.getBoolean(action + "_sent", false)) " / 전송 요청" else " / 전송 실패"
-        }
-        return label + "\n다음 목표: " + next + "\n최근 시도: " + attempt
+        val attempt = if (last == 0L) getString(R.string.status_none) else
+            getString(
+                R.string.status_last_detail,
+                format(last),
+                getString(if (p.getBoolean(action + "_sent", false))
+                    R.string.status_sent else R.string.status_send_failed)
+            )
+        return listOf(
+            label,
+            getString(R.string.status_next, next),
+            getString(R.string.status_last, attempt)
+        ).joinToString("\n")
     }
 
-    private fun format(epoch: Long): String = DateFormat.getDateTimeInstance().format(Date(epoch))
+    private fun format(epoch: Long): String {
+        val locale = resources.configuration.locales[0]
+        return DateFormat.getDateTimeInstance(
+            DateFormat.DEFAULT, DateFormat.DEFAULT, locale
+        ).format(Date(epoch))
+    }
 }
